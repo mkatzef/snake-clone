@@ -1,8 +1,7 @@
 import serial
+from serial.tools.list_ports import comports
 from tkinter import*
 from tkinter.ttk import *
-
-PORT_NAME = input("Port name:")
 
 class GamePad:
     def __init__(self, window):
@@ -45,6 +44,12 @@ def main():
 
 
 if __name__ == "__main__":
+    available_ports = comports()
+    print("Available ports:")
+    for available_port in available_ports:
+        print(available_port)
+    
+    PORT_NAME = input("Please enter a valid port name (e.g. \"COM3\"):")
     ser = serial.Serial(PORT_NAME, 9600)
     main()
     ser.close()

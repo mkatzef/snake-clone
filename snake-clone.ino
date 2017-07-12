@@ -164,15 +164,20 @@ void loop(){
       break;
     }   
   }
+  
+  freeSnake(&snake);
 }
 
 
-/** Finds a free pixel by randomly drawing a tuple struct from those
- * that do not hold a segment of the given snake. This updates the fly
- * associated with the given snake. If it is successful, it returns 0,
- * otherwise 1. **/
+/*  
+ * Finds a free pixel by randomly selecting a display index from those which do not
+ * hold a segment of the given snake. This updates the fly associated with the
+ * given snake. Returns 0 if successful, otherwise 1.
+ * 
+ * Note: current method favors pixels belonging to rows with fewest free spaces.
+ */
 int newFly(Snake* snake) {
-  unsigned short covered[COLUMNS] = {0};
+  unsigned short covered[COLUMNS] = {0}; // Each 16-bit number represents the 16 rows of a column
   
   Segment* focus = snake->tail;
   while (focus) {
@@ -180,7 +185,7 @@ int newFly(Snake* snake) {
     focus = focus->next;
   }
   
-  byte uncoveredCols[COLUMNS] = { 0 };
+  byte uncoveredCols[COLUMNS] = {0}; // The indices of columns with free spaces
 
   byte counter = 0;
   for (byte col = 0; col < COLUMNS; col++) {
@@ -190,37 +195,40 @@ int newFly(Snake* snake) {
     }
   }
 
-  if (counter == 0) {
+  if (counter == 0) { // No columns with free space
     return 1;
   }
 
-  byte col = rand() % counter;
-  byte column = uncoveredCols[col];
+  byte colIndex = rand() % counter;
+  byte column = uncoveredCols[colIndex];
   
   counter = 0;
   byte uncoveredRows[ROWS] = {0};
   for (byte row = 0; row < ROWS; row++) {
-    if (column & (1<<row)) {
+    if (column & (1 << row)) {
       uncoveredRows[counter] = row;
       counter++;
     }
   }
-  
-  byte row = uncoveredRows[rand() % counter];
+
+  byte rowIndex = rand() % counter;
+  byte row = uncoveredRows[rowIndex];
   
   snake->fly->row = row;
-  snake->fly->col = col;
+  snake->fly->col = column;
   
   return 0;
 }
 
 
-/** Identifies if the new head pixel is already occupied by a segment in
- * the linked list starting with tail. If it is, returns 1. If no
- * collision occurs, returns 0. **/
+/* 
+ * Identifies if the new head pixel is already occupied by a segment in the snake 
+ * linked list (excluding the head itself). If so, returns 1. If no collision
+ * has occurred, returns 0.
+ */
 int collision(Segment* tail, Segment* head) {
   Segment* focus = tail;
-  while (focus->next) { //check all but the head itself
+  while (focus->next) { // Check all but the head itself
     if ((focus->row == head->row) && (focus->col == head->col)) {
       return 1;
     }
@@ -230,69 +238,72 @@ int collision(Segment* tail, Segment* head) {
 }
 
 
-/** Updates the snake segment positions by shuffling the segment
- * coordinates toward the snake's tail, finds the new head position
- * according to the current direction. If the snake is starting or a fly
- * is eaten, the original end segment is recreated (malloc) and kept.
- * If a collision occurs or a new fly couldn't be created, returns 1.
- * Otherwise all is well and returns 0. 
- * Should update for nav_direction to never be -1, instead always the
- * current direction. **/
+/* 
+ * Updates the snake segment positions by shuffling the segment coordinates toward
+ * the snake's tail, finds the new head position according to the current
+ * direction.
+ * 
+ * If the snake is starting or a fly is eaten, the original end segment is
+ * recreated and kept.
+ * 
+ * If a collision occurs or a new fly couldn't be created, returns 1, otherwise
+ * returns 0. 
+ */
 int gameStep(Snake* snake, bool starting) {
-  //Save tail data in case of length increase
-  int tail_row = snake->tail->row;
-  int tail_col = snake->tail->col;
+  // Save tail position in case of length increase
+  int tailRow = snake->tail->row;
+  int tailCol = snake->tail->col;
   
-  //Shift snake segments
-  Segment* focus_seg = snake->tail;
-  Segment* next_seg = focus_seg->next;
-  while (next_seg) {
-    focus_seg->row = next_seg->row;
-    focus_seg->col = next_seg->col;
-    focus_seg = next_seg;
-    next_seg = focus_seg->next;
+  // Shift snake segments
+  Segment* focusSeg = snake->tail;
+  Segment* nextSeg = focusSeg->next;
+  while (nextSeg) {
+    focusSeg->row = nextSeg->row;
+    focusSeg->col = nextSeg->col;
+    focusSeg = nextSeg;
+    nextSeg = focusSeg->next;
   }
-  Segment* head = focus_seg;
+  Segment* head = focusSeg;
   
-  //Step forward
+  // Step forward
   switch (snake->direction) {
-    case 0:
-    head->row = (head->row+ROWS-1) % ROWS;
+  case DIR_DOWN:
+    head->row = (head->row + ROWS - 1) % ROWS;
     break; 
     
-    case 1:
-    head->col = (head->col+1) % COLUMNS;
+  case DIR_LEFT:
+    head->col = (head->col + 1) % COLUMNS;
     break;
     
-    case 2:
-    head->row = (head->row+1) % ROWS;
+  case DIR_UP:
+    head->row = (head->row + 1) % ROWS;
     break;
     
-    case 3:
-    head->col = (head->col+COLUMNS-1) % COLUMNS;
+  case DIR_RIGHT:
+    head->col = (head->col + COLUMNS - 1) % COLUMNS;
     break;
   }
   
-  //Need to grow
+  // Need to grow
   if (((head->row == snake->fly->row) && (head->col == snake->fly->col)) || starting) {
     
-    Segment* old_tail = malloc(sizeof(Segment)); // WARNING: use of malloc without corresponding free anywhere.
-    old_tail->row = tail_row;
-    old_tail->col = tail_col;
-    old_tail->next = snake->tail;
-    snake->tail = old_tail;
+    Segment* oldTail = malloc(sizeof(Segment));
+    oldTail->row = tailRow;
+    oldTail->col = tailCol;
+    oldTail->next = snake->tail;
+    snake->tail = oldTail;
     
-    if (((head->row == snake->fly->row) && (head->col == snake->fly->col))) { //Ate a fly
+    if (((head->row == snake->fly->row) && (head->col == snake->fly->col))) { // Ate a fly
       int status = newFly(snake);
       if (status != 0) {
         return 1;
       }
     }
   } else {
-    dmd.writePixel(tail_col,tail_row,GRAPHICS_NORMAL,0);
+    dmd.writePixel(tailCol, tailRow, GRAPHICS_NORMAL, 0); // Turn tail LED off
   }
   
-  //Check for collisions
+  // Check for collisions
   if (collision(snake->tail, head)) {
     return 1;
   }
@@ -301,24 +312,32 @@ int gameStep(Snake* snake, bool starting) {
 }
 
 
-/** Puts a 1 in every position in the bitmask where a snake segment or a
- * fly should be represented. **/
-void updateBitmap(Snake* snake) {
-  //for (int i = 0; i < COLUMNS; i++) {
-  //  bitmap[i] = 0;
-  //}
+/* 
+ * Enables the LED corresponding to every segment of the given snake, and the fly.
+ */
+void updateBitmap(Snake* snake) {  
+  Segment* focusSeg = snake->tail;
+  do {    
+    dmd.writePixel(focusSeg->col, focusSeg->row, GRAPHICS_NORMAL, 1);
+    focusSeg = focusSeg->next;
+  } while (focusSeg);
   
-  Segment* focus_seg = snake->tail;
-  do {
-    //bitmap[focus_seg->col] |= 1 << focus_seg->row;
-    
-    dmd.writePixel(focus_seg->col,focus_seg->row,GRAPHICS_NORMAL,1);
-    focus_seg = focus_seg->next;
-  } while (focus_seg);
-  //bitmap[snake->fly->col] |= 1 << snake->fly->row;
-    dmd.writePixel(snake->fly->col,snake->fly->row,GRAPHICS_NORMAL,1);
+  dmd.writePixel(snake->fly->col, snake->fly->row, GRAPHICS_NORMAL, 1);
 }
 
 
+/* 
+ * Frees all segments of the snake (and its fly) from memory.
+ */
+void freeSnake(Snake* snake) {
+  Segment* focusSeg = snake->tail;
+  Segment* nextSeg = focusSeg->next;
+  do {    
+    free(focusSeg);
+    focusSeg = nextSeg;
+    nextSeg = nextSeg->next;
+  } while (focusSeg);
 
+  free(snake->fly);
+}
 

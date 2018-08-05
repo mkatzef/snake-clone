@@ -2,6 +2,10 @@
 
 A clone of the classic video game "Snake" for an Arduino Nano (or similar) device, using a LED matrix as the display.
 
+## Demo
+
+<img src="images/demo.gif" width="248" title="Snake clone demo">
+
 ## Getting Started
 
 The project sketch depends on the following 3rd-party libraries.
